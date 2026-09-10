@@ -1,0 +1,20 @@
+# Data
+data/raw/*.csv
+data/processed/*.csv
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv/
+.venv/
+
+# Results (large/binary artifacts)
+results/models/*.pkl
+results/models/*.joblib
+
+# OS
+.DS_Store
+
+# Environment / secrets
+.env
