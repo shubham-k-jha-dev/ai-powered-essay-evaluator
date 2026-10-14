@@ -1,0 +1,76 @@
+{
+  "final_model": {
+    "Model": "FINAL: Ridge word+char TF-IDF + features (alpha=10)",
+    "MAE": 0.4546,
+    "RMSE": 0.5834,
+    "R2": 0.6805,
+    "QWK": 0.7754,
+    "Exact acc (rounded)": 0.6304,
+    "Within 1 point": 0.9848,
+    "Training Time (s)": 215.0
+  },
+  "comparison": [
+    {
+      "Model": "Notebook 05 ensemble (needs prompt label)",
+      "MAE": 0.4518,
+      "RMSE": 0.5852,
+      "R2": 0.6785,
+      "QWK": 0.7648,
+      "Exact acc (rounded)": 0.6345,
+      "Within 1 point": 0.9812,
+      "Training Time (s)": 10.8
+    },
+    {
+      "Model": "Notebook 05 ensemble, prompt NOT given",
+      "MAE": 0.4587,
+      "RMSE": 0.5968,
+      "R2": 0.6657,
+      "QWK": 0.7534,
+      "Exact acc (rounded)": 0.6258,
+      "Within 1 point": 0.979,
+      "Training Time (s)": 0
+    },
+    {
+      "Model": "Ridge word+char TF-IDF + features (alpha=10)",
+      "MAE": 0.4546,
+      "RMSE": 0.5834,
+      "R2": 0.6805,
+      "QWK": 0.7754,
+      "Exact acc (rounded)": 0.6304,
+      "Within 1 point": 0.9848,
+      "Training Time (s)": 215.0
+    },
+    {
+      "Model": "Gradient Boosting on 17 features",
+      "MAE": 0.484,
+      "RMSE": 0.6384,
+      "R2": 0.6173,
+      "QWK": 0.7313,
+      "Exact acc (rounded)": 0.6126,
+      "Within 1 point": 0.9721,
+      "Training Time (s)": 1.8
+    },
+    {
+      "Model": "Ridge + GB average (no prompt needed)",
+      "MAE": 0.4543,
+      "RMSE": 0.5898,
+      "R2": 0.6734,
+      "QWK": 0.7638,
+      "Exact acc (rounded)": 0.6383,
+      "Within 1 point": 0.9806,
+      "Training Time (s)": 0
+    },
+    {
+      "Model": "FINAL: Ridge word+char TF-IDF + features (alpha=10)",
+      "MAE": 0.4546,
+      "RMSE": 0.5834,
+      "R2": 0.6805,
+      "QWK": 0.7754,
+      "Exact acc (rounded)": 0.6304,
+      "Within 1 point": 0.9848,
+      "Training Time (s)": 215.0
+    }
+  ],
+  "n_train": 19782,
+  "n_test": 4946
+}

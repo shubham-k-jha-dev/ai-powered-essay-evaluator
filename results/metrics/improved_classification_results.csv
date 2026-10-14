@@ -1,0 +1,4 @@
+Method,Accuracy,Precision,Recall,F1
+Logistic Regression (combined features),0.7978,0.7966,0.7978,0.7946
+Best regression model -> bucketed,0.814,0.8138,0.814,0.8097
+Majority-class baseline,0.5831,,,

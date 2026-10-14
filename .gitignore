@@ -18,3 +18,9 @@ results/models/*.joblib
 
 # Environment / secrets
 .env
+# Node / frontend build
+node_modules/
+frontend/dist/
+
+# Runtime data
+backend/_history/
