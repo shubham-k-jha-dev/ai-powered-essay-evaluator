@@ -1,145 +1,194 @@
 # AI Essay Evaluator
 
-An AI-powered essay scoring and writing-feedback web app. A student pastes an essay
-(and optionally its topic), and the app returns a **predicted holistic score on the 1–6 scale**
-from a machine-learning model trained on real, teacher-graded essays. It also shows
-writing statistics, readability metrics, strengths, weaknesses and suggestions.
+A web app that estimates a holistic essay score and gives rule-based writing feedback. Paste an essay, optionally provide its topic, and receive a predicted score on the **1–6 ASAP 2.0 scale**, writing and readability statistics, mechanics checks, and suggestions.
 
-## Features
-- Essay editor with live word / sentence / character count
-- Optional topic or assignment prompt (used for a keyword-overlap relevance indicator)
-- **Evaluate Essay** sends the essay to a FastAPI backend that runs the trained model
-- Predicted score (1–6, with the band label and the full scale)
-- Writing statistics: words, sentences, paragraphs, average sentence length, unique words,
-  type-token ratio, long-word ratio, average word length
-- Readability: Flesch Reading Ease, Flesch-Kincaid grade, transition-word density, reading time
-- Strengths, areas to improve, and actionable suggestions (rule-based, from the measured features)
-- Basic mechanics checks (lowercase "i", lowercase sentence starts, very long sentences,
-  doubled words, punctuation spacing, overused words)
-- Two sample essays, loading and error states, and a list of essays evaluated in this session
-  (click one to view it again). Evaluate as many essays as you like without restarting.
+## What it does
 
-## Dataset
-- **ASAP 2.0** (Automated Student Assessment Prize 2.0), `data/raw/ASAP2_train_sourcetexts.csv`
-- 24,728 argumentative/source-based essays by US students (grades 6–12) on 7 prompts
-- Target: `score`, the human holistic score, 1–6
-  (distribution: 1 → 1,751 · 2 → 6,847 · 3 → 9,021 · 4 → 5,553 · 5 → 1,356 · 6 → 200)
-- Demographic columns are **never** used as features.
-- Cleaned data: `data/processed/essays_processed.csv` (produced by notebook 03)
+- Scores essays with a saved machine-learning model; the app does not train a model when it starts.
+- Reports the predicted score, rounded score band, and band label.
+- Calculates word, sentence, paragraph, vocabulary, and readability statistics.
+- Gives strengths, areas to improve, and suggestions based on measured features and simple rules.
+- Flags a small set of mechanics issues, such as lowercase “I”, repeated words, and long sentences. These checks are not a full grammar or spelling checker.
+- Lets you optionally enter a topic. The topic is used only for a keyword-overlap indicator and related feedback; it does **not** affect the score.
+- Includes sample essays and keeps up to eight evaluations in memory for the current browser session. It does not provide persistent accounts or a database-backed history.
 
-## Model
-Final model, trained by `src/models/train_final.py`:
+## How scoring works
 
-**Ridge regression** on
-1. word 1–2-gram TF-IDF (20,000 features),
-2. character 3–5-gram TF-IDF (30,000 features; robust to misspellings), and
-3. 17 standardised handcrafted features: length counts, average word/sentence length,
-   sentence-length variation, unique words, type-token ratio, Flesch scores, log word count,
-   long-word ratio, commas per sentence, paragraph count, lowercase-"i" rate,
-   lowercase sentence-start rate, and transition-word rate.
+The deployed scorer is a Ridge regression model trained on the ASAP 2.0 dataset. It combines:
 
-It does **not** need the prompt label, so any essay can be scored. The alpha (10) was chosen with
-3-fold cross-validation. A features-only Gradient Boosting model is shown in the UI as a
-"second opinion", but it is not used for the score.
+1. Word-level TF-IDF features (1–2-grams; up to 20,000 features).
+2. Character-level TF-IDF features (3–5 character n-grams; up to 30,000 features), which can capture spelling and word-form patterns.
+3. Seventeen numeric text features, including length, vocabulary diversity, readability, sentence variation, paragraph count, and transition-word use.
 
-The website loads the saved file `results/models/final_essay_scorer.joblib`. It never trains a model at startup.
-All features are computed by one shared module (`src/features/model_features.py`), so training
-and the website use exactly the same code.
+The model predicts a continuous value, which is clipped to the 1–6 range. The UI also displays a feature-only Gradient Boosting prediction as a **second opinion**; Ridge supplies the reported score. The topic field is not needed by either model.
 
-## Results (actual, held-out test set)
-Same 80/20 split (`random_state=42`, 19,782 train / 4,946 test) as notebooks 04 and 05.
-From `results/metrics/final_model_comparison.csv`:
+Feature extraction is shared between training and inference in [`src/features/model_features.py`](src/features/model_features.py) and [`src/features/text_features.py`](src/features/text_features.py).
 
-| Model | MAE | RMSE | R² | QWK | Exact (rounded) | Within ±1 |
-|---|---|---|---|---|---|---|
-| Baseline: Random Forest, handcrafted features (nb 04) | 0.510 | 0.676 | 0.571 | – | – | – |
-| Baseline: Ridge, TF-IDF only (nb 04) | 0.535 | 0.672 | 0.576 | – | – | – |
-| Notebook 05 ensemble (**needs prompt label**) | 0.452 | 0.585 | 0.679 | 0.765 | 63.5% | 98.1% |
-| Notebook 05 ensemble, prompt not given | 0.459 | 0.597 | 0.666 | 0.753 | 62.6% | 97.9% |
-| Gradient Boosting, 17 features | 0.484 | 0.638 | 0.617 | 0.731 | 61.3% | 97.2% |
-| Ridge + GB average | 0.454 | 0.590 | 0.673 | 0.764 | 63.8% | 98.1% |
-| **FINAL: Ridge, word+char TF-IDF + 17 features** | **0.455** | **0.583** | **0.681** | **0.775** | 63.0% | **98.5%** |
+### Dataset and evaluation
 
-QWK = quadratic weighted kappa, the standard metric for essay scoring.
-Compared with the notebook 04 baselines, RMSE drops from 0.672 to 0.583 and R² rises from 0.576 to 0.681.
-The final model matches or beats the notebook 05 model while **no longer needing the prompt**,
-which is what lets the website accept any essay. The gain over notebook 05 is small; most of the
-improvement came in notebook 05.
+The project uses **ASAP 2.0** (Automated Student Assessment Prize 2.0), a dataset of 24,728 student essays on seven prompts, with holistic scores from 1 to 6. The dataset includes demographic fields, but these are not used as model features. Dataset files are not included in Git; obtain them through the applicable dataset access terms.
 
-Secondary Low/Medium/High classification results (confusion matrices) are in notebooks 04/05 and
-`results/metrics/*classification_results.csv`.
+The reported final-model metrics use a random 80/20 train/test split (`random_state=42`), with 19,782 training essays and 4,946 test essays:
 
-## Technology stack
-- **ML/NLP:** Python, scikit-learn, pandas, NumPy, SciPy, NLTK, textstat, joblib
-- **Backend:** FastAPI + Uvicorn
-- **Frontend:** React 19, TypeScript, Tailwind CSS 4, Vite, lucide-react icons
+| Metric | Result |
+|---|---:|
+| Mean absolute error (MAE) | 0.4546 |
+| Root mean squared error (RMSE) | 0.5834 |
+| R² | 0.6805 |
+| Quadratic weighted kappa (QWK) | 0.7754 |
+| Exact accuracy after rounding | 63.04% |
+| Within one score point | 98.48% |
 
-## Project structure
-```
-ai-essay-eval/
+These are held-out results from a random split, not a guarantee of performance on new prompts. Essays from the same prompts can appear in both the training and test sets, so performance on entirely new topics may be lower. The dataset also contains relatively few essays at score 6.
+
+The model can reward length and vocabulary patterns even when an essay has weak reasoning or is off topic. It does not fact-check claims or reliably assess argument quality. Treat the score and automated feedback as suggestions for revision.
+
+## Technology
+
+- **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS 4
+- **API:** Python, FastAPI, Uvicorn
+- **Model and NLP:** pandas, NumPy, SciPy, scikit-learn, joblib, NLTK, textstat
+- **Analysis:** Jupyter, matplotlib, seaborn
+
+## Repository layout
+
+```text
+.
 ├── backend/
-│   ├── main.py                 # FastAPI app (/api/health, /api/model, /api/evaluate)
-│   ├── essay_scorer.py         # loads the saved model, scores the essay, builds feedback
-│   └── train_and_save_model.py # legacy Random-Forest trainer (Review 1), not used by the app
-├── frontend/                   # React + TypeScript + Tailwind app
-├── data/raw, data/processed/   # dataset (not committed)
-├── notebooks/01-05             # dataset understanding, EDA, preprocessing, baseline, improved models
+│   ├── main.py                    # FastAPI application and API endpoints
+│   ├── essay_scorer.py            # Model loading, scoring, statistics, feedback
+│   └── train_and_save_model.py    # Legacy baseline trainer; not used by the API
+├── data/
+│   ├── raw/                       # ASAP 2.0 source CSV (not tracked by Git)
+│   └── processed/                 # Notebook-generated CSV (not tracked by Git)
+├── frontend/
+│   ├── src/App.tsx                # Active single-page application
+│   ├── src/api.ts                 # Frontend API client and types
+│   └── vite.config.ts             # Dev server and /api proxy
+├── notebooks/
+│   ├── 01_dataset_understanding.ipynb
+│   ├── 02_eda.ipynb
+│   ├── 03_preprocessing_and_features.ipynb
+│   ├── 04_baseline_models.ipynb
+│   └── 05_improved_models.ipynb
+├── results/
+│   ├── figures/                   # Analysis visualizations
+│   ├── metrics/                   # Saved model and experiment metrics
+│   └── models/                    # Trained model artifacts (not tracked by Git)
 ├── src/
-│   ├── data/                   # loading + cleaning
-│   ├── features/               # text_features.py, model_features.py (shared by training + API)
-│   └── models/                 # baseline_models.py, evaluate.py, train_final.py
-├── results/figures, metrics, models/
-├── start_backend.bat, start_frontend.bat
+│   ├── data/                      # Dataset loading and preprocessing helpers
+│   ├── features/                  # Shared numeric and text feature extraction
+│   └── models/                    # Baseline, evaluation, and final-model training
 └── requirements.txt
 ```
 
-## Installation (Windows, one time)
-Requires Python 3.11+ (tested with 3.14) and Node.js 20+ (tested with 24).
-Open PowerShell in the project folder:
+The repository also contains some earlier frontend components/pages and a baseline trainer from development. The running Vite app starts at `frontend/src/main.tsx` and renders `frontend/src/App.tsx`; the API loads the final model bundle described below.
+
+## Run locally (Windows PowerShell)
+
+### Prerequisites
+
+- Python 3.11 or newer
+- Node.js 20.19+ or 22.12+ (required by the Vite version in the frontend lockfile)
+- npm
+
+### 1. Install dependencies
+
+Run from the repository root:
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-cd frontend
-npm install
-cd ..
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+Set-Location .\frontend
+npm ci
+Set-Location ..
 ```
 
-If `results/models/final_essay_scorer.joblib` is missing, train it (about 4 minutes):
-```powershell
-.venv\Scripts\python src\models\train_final.py
+### 2. Provide or create the model artifact
+
+The API expects this file:
+
+```text
+results/models/final_essay_scorer.joblib
 ```
 
-## Running the app (Windows)
-**Terminal 1: backend** (from the project folder)
-```powershell
-.venv\Scripts\python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
-```
-Wait for `Application startup complete` (about 10–20 s while the model loads).
+Model artifacts are excluded from Git. If you have a compatible pre-trained bundle, place it at that path. Otherwise, prepare and train the model:
 
-**Terminal 2: frontend**
+1. Obtain the ASAP 2.0 training CSV according to its access terms and place it at `data/raw/ASAP2_train_sourcetexts.csv`.
+2. Run all cells in `notebooks/03_preprocessing_and_features.ipynb`. This creates `data/processed/essays_processed.csv`.
+3. From the repository root, train and save the final model:
+
+   ```powershell
+   .\.venv\Scripts\python.exe src\models\train_final.py
+   ```
+
+Training takes several minutes and writes the model bundle and final metrics under `results/`. The `01` and `02` notebooks explore the data; `04` and `05` document baseline and improved experiments. They are not required to start the API when the final model bundle is already available.
+
+The model is loaded with `joblib` and scikit-learn. For reliable inference, use a model artifact produced with the dependency versions intended for that artifact; scikit-learn does not guarantee compatibility of serialized models across versions.
+
+### 3. Start the API
+
+Open a terminal at the repository root and run:
+
 ```powershell
-cd frontend
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+The server loads the model during startup and may download the NLTK `punkt` and `punkt_tab` tokenizer data the first time it runs. Keep this terminal open.
+
+### 4. Start the frontend
+
+In a second terminal:
+
+```powershell
+Set-Location .\frontend
 npm run dev
 ```
-Open **http://localhost:5173**.
 
-Or double-click `start_backend.bat` and then `start_frontend.bat`.
+Open [http://localhost:5173](http://localhost:5173). Vite forwards requests under `/api` to the local FastAPI server on port 8000.
 
-API docs: http://127.0.0.1:8000/docs
+### Verify the API
 
-## Known limitations
-- The model learned from ASAP 2.0 essays by students in grades 6–12 on 7 specific prompts.
-  Scores for very different writing (university essays, creative writing, other topics) are less reliable.
-- The score depends strongly on length and vocabulary features. A long essay that is off-topic
-  or badly argued can still score fairly high. The model does not check facts or reasoning.
-- Exact-band accuracy is about 63%. Predictions are within ±1 band about 98% of the time.
-- Score 6 is rare in the data (200 essays), so the model seldom predicts above about 5.
-- Strengths, weaknesses and suggestions are **rule-based** on measured features. They are not
-  generated by the ML model.
-- The mechanics checks are simple regex rules, **not a full grammar or spelling checker**.
-- Topic relevance is a TF-IDF keyword-overlap number. It does not affect the score.
-- Next-word prediction (LSTM) from the original plan is **not implemented**. The earlier
-  hard-coded word-suggestion endpoint was removed so the demo doesn't present it as AI.
-- The test split is random, so essays from the same prompts appear in both train and test.
-  Results on completely new prompts are expected to be somewhat lower.
+- Health and model availability: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+- Model details: [http://127.0.0.1:8000/api/model](http://127.0.0.1:8000/api/model)
+- Interactive API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+If the model bundle is missing, `/api/health` reports `model_missing`, and evaluation requests return an error rather than a fabricated score.
+
+## API
+
+All endpoints are served by `backend/main.py`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/health` | Reports service status and whether the model is loaded. |
+| `GET` | `/api/model` | Returns model name, version, and saved test metrics when available. |
+| `POST` | `/api/evaluate` | Evaluates one essay and returns its score, statistics, and feedback. |
+
+Example request:
+
+```json
+{
+  "essay": "Paste an essay of at least 30 words here.",
+  "topic": "An optional essay topic or assignment prompt"
+}
+```
+
+`topic` may be omitted or set to `null`. The API accepts essays up to 30,000 characters and topics up to 1,000 characters. Essays shorter than 30 words are rejected with HTTP 422. A successful response includes the continuous and rounded score, label, model breakdown, writing statistics, optional topic-overlap value, mechanics checks, strengths, weaknesses, suggestions, and evaluation time.
+
+## Development checks
+
+Run these commands from `frontend/`:
+
+```powershell
+npm run build
+npm run lint
+```
+
+There is no dedicated automated test suite currently included in the repository.
+
+## Data and generated files
+
+The root `.gitignore` excludes raw and processed dataset CSVs, local virtual environments, frontend dependencies/build output, and saved model bundles. A fresh clone therefore needs the dataset and model bundle to be supplied or generated before essay evaluation will work. The tracked files in `results/metrics/` contain experiment summaries; they are not substitutes for the trained `.joblib` model.
